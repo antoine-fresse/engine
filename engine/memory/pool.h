@@ -6,9 +6,10 @@ class BasePool
 public:
 	BasePool(std::uint32_t element_size, std::uint32_t elements_per_block = 8192) : _capacity(0), _size(0), _elements_per_block(elements_per_block), _element_size(element_size){}
 	virtual ~BasePool();
-	virtual void* operator[](const int index);
-	
-	void* reserve(const int index);
+	void* get_element(const int index);
+	virtual void destroy(const int index) = 0;
+	virtual void default_constuct(const int index) = 0;
+	void reserve(const int index);
 private:
 	std::uint32_t _capacity;
 	std::uint32_t _size;
@@ -19,14 +20,15 @@ private:
 	std::vector<char*> _memory_blocks;
 };
 template<typename type>
-class Pool : BasePool
+class Pool : public BasePool
 {
 public:
 	Pool(std::uint32_t elements_per_block = 8192) : BasePool(sizeof(type), elements_per_block){}
-	void destroy(const int index);
-	type* operator[](const int index) override
+	void destroy(const int index) override;
+	void default_constuct(const int index) override;
+	type* get(const int index)
 	{
-		return static_cast<type*>(operator[](index));
+		return static_cast<type*>(get_element(index));
 	}
 };
 
@@ -39,7 +41,7 @@ inline BasePool::~BasePool()
 	
 }
 
-inline void* BasePool::operator[](const int index)
+inline void* BasePool::get_element(const int index)
 {
 	int block_index = index / _elements_per_block;
 	int index_in_block = index%_elements_per_block;
@@ -49,23 +51,27 @@ inline void* BasePool::operator[](const int index)
 template <typename type>
 void Pool<type>::destroy(const int index) 
 {
-	operator[](index)->~type();
+	get(index)->~type();
 }
 
-
-inline void* BasePool::reserve(const int index) 
+template <typename type>
+void Pool<type>::default_constuct(const int index)
 {
-	if(index>_size) 
+	::new(get(index)) type();
+}
+
+inline void BasePool::reserve(const int index) 
+{
+	if(index>=_size) 
 	{
-		if (index > _capacity) grow(index);
+		if (index >= _capacity) grow(index);
 		_size = index;
 	}
-	return operator[](index);
 }
 
 inline void BasePool::grow(const int index) 
 {
-	while(_capacity<index) 
+	while(_capacity<=index) 
 	{
 		_memory_blocks.push_back(new char[_elements_per_block*_element_size]);
 		_capacity += _elements_per_block;
