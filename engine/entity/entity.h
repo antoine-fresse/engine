@@ -5,6 +5,8 @@
 #include <bitset>
 #include <map>
 
+
+
 #define MAX_COMPONENTS 64
 
 #define RegisterComponent(Component, EM) (EM)->register_component<Component>(#Component)
@@ -14,6 +16,7 @@ template<typename type>
 class Component;
 class EntityManager;
 
+
 class Entity
 {
 public:
@@ -21,7 +24,7 @@ public:
 	struct Id
 	{
 		Id() = default;
-		Id(uint32 id, uint32 version) : id(id), version(version){}
+		Id(uint32 id, uint32 version) : id(id), version(version) {}
 		union
 		{
 			struct {
@@ -50,13 +53,15 @@ public:
 	void destroy() const;
 
 	bool valid() const;
-	
+
+
 	Id id() const { return _id; }
+	EntityManager* manager() const { return _entity_manager; }
 
 	std::bitset<MAX_COMPONENTS> mask() const;
 
 private:
-	
+
 	Id _id;
 	EntityManager* _entity_manager;
 };
@@ -97,7 +102,12 @@ public:
 	bool has_component(Entity::Id entity) const;
 	bool has_component(Entity::Id entity, const std::string& component_name) const;
 
+	template <typename type>
+	type* get_component(Entity::Id entity) const;
+
 	std::bitset<MAX_COMPONENTS> mask(Entity::Id entity);
+
+	std::string get_component_name(uint32 index) const { return _component_name[index]; }
 
 	template <typename type>
 	uint32 index()
@@ -116,7 +126,7 @@ protected:
 	uint32 _free_index;
 	std::vector<uint32> _free_slots;
 
-	uint32 allocate_entity();
+	uint32 allocate_entity(bool force_at_end = false);
 };
 
 
@@ -219,6 +229,17 @@ bool EntityManager::has_component(Entity::Id entity) const
 	return entity_mask[component_index];
 }
 
+template <typename type>
+type* EntityManager::get_component(Entity::Id entity) const
+{
+	ASSERT(valid(entity));
+	auto& entity_mask = _entity_masks[entity.id];
+	int component_index = index<type>();
+	if (!entity_mask[component_index]) return nullptr;
+	Pool<type>* pool = static_cast<Pool<type>*>(_component_pools[component_index]);
+	return pool->get(entity.id);
+}
+
 /*
 *	Entity
 */
@@ -250,6 +271,8 @@ inline void Entity::remove_component()
 {
 	_entity_manager->remove_component<type>(_id);
 }
+
+
 
 inline void Entity::remove_component(const std::string& component_name) const
 {

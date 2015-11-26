@@ -52,9 +52,9 @@ bool EntityManager::has_component(Entity::Id entity, const std::string& componen
 	return true;
 }
 
-uint32 EntityManager::allocate_entity()
+uint32 EntityManager::allocate_entity(bool force_at_end)
 {
-	if(_free_slots.size())
+	if(!force_at_end && _free_slots.size())
 	{
 		uint32 index = _free_slots.back();
 		_free_slots.pop_back();
