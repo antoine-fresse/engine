@@ -70,6 +70,43 @@ namespace kth
 		EntityManager* _entity_manager;
 	};
 
+	/*template<class Pred>
+	class EntityIterator : std::iterator<std::forward_iterator_tag, Entity>
+	{
+	public:
+		EntityIterator(EntityManager* manager) : _manager(manager){};
+		Entity operator*() const
+		{
+			return Entity(_id.id, _id.version, _manager);
+		}
+
+		Entity operator->()
+		{
+			return operator*();
+		}
+
+		EntityIterator& operator++()
+		{
+			next();
+			return *this;
+		};
+
+		EntityIterator operator++(int)
+		{
+			EntityIterator<Pred> it(*this);
+			next();
+			return it;
+		};
+
+	private:
+		void next()
+		{
+			
+		}
+
+		Entity::Id _id;
+		EntityManager* _manager;
+	};*/
 
 
 	class EntityManager
