@@ -2,6 +2,7 @@
 #include <entity/entity.h>
 #include <fstream>
 #include <entity/serializer.h>
+#include <thread/multitasker.h>
 
 struct Transform
 {
@@ -12,26 +13,13 @@ struct Transform
 	float z;
 };
 
-int main(int argc, char* argv[])
+
+void main_loop()
 {
-
-	EntityManager EM;
-	RegisterComponent(Transform, &EM);
-
-
-	Entity e = EM.create_empty_entity();
-	Transform* test = e.add_component<Transform>(1.0f,2.0f,3.0f);
-
-	std::ofstream file("blueprint.json");
-	cereal::JSONOutputArchive ar(file);
-	ar(e);
-
-	file.close();
-
 	sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
 	sf::CircleShape shape(100.f);
 	shape.setFillColor(sf::Color::Green);
-	
+
 	while (window.isOpen())
 	{
 		sf::Event event;
@@ -41,11 +29,31 @@ int main(int argc, char* argv[])
 				window.close();
 		}
 
-		shape.setPosition(test->x, test->y);
-
 		window.clear();
 		window.draw(shape);
 		window.display();
 	}
+}
+
+int main(int argc, char* argv[])
+{
+	kth::EntityManager EM;
+	RegisterComponent(Transform, &EM);
+
+
+	kth::Entity e = EM.create_empty_entity();
+	Transform* test = e.add_component<Transform>(1.0f,2.0f,3.0f);
+
+	kth::Multitasker tasker(4,25);
+	tasker.enqueue(main_loop);
+	tasker.process_tasks();
+
+	/*std::ofstream file("blueprint.json");
+	cereal::JSONOutputArchive ar(file);
+	ar(e);
+
+	file.close();*/
+
+	
 	return 0;
 }

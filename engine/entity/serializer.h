@@ -4,36 +4,38 @@
 #include <cereal/archives/json.hpp>
 
 
-
-struct EntityInfo
+namespace kth
 {
-	std::vector<std::string> components;
-	template<class Archive>
-	void serialize(Archive & archive)
+	struct EntityInfo
 	{
-		archive(CEREAL_NVP(components));
-	}
-};
-
-template<class Archive>
-void save(Archive & archive, Entity const & m)
-{
-	auto mask = m.mask();
-	EntityInfo info;
-	for (int i = 0; i < MAX_COMPONENTS; ++i)
-	{
-		if (mask[i])
+		std::vector<std::string> components;
+		template<class Archive>
+		void serialize(Archive & archive)
 		{
-			info.components.push_back(m.manager()->get_component_name(i));
+			archive(CEREAL_NVP(components));
 		}
+	};
+
+	template<class Archive>
+	void save(Archive & archive, kth::Entity const & m)
+	{
+		auto mask = m.mask();
+		EntityInfo info;
+		for (int i = 0; i < MAX_COMPONENTS; ++i)
+		{
+			if (mask[i])
+			{
+				info.components.push_back(m.manager()->get_component_name(i));
+			}
+		}
+
+		archive(info);
 	}
 
-	archive(info);
-}
-
-template<class Archive>
-void load(Archive & archive, Entity & m)
-{
-	EntityInfo entity_info;
-	archive(CEREAL_NVP(entity_info));
+	template<class Archive>
+	void load(Archive & archive, kth::Entity & m)
+	{
+		EntityInfo entity_info;
+		archive(CEREAL_NVP(entity_info));
+	}
 }
