@@ -23,20 +23,21 @@ namespace kth
 	struct Task
 	{
 		Task(){}
-		Task(std::function<void(void)> func, std::shared_ptr<AtomicCounter> counter) : function(func), counter(counter) {}
+		Task(const std::function<void()>& func, std::shared_ptr<AtomicCounter> counter) : function(func), counter(counter) {}
 
-		std::function<void(void)> function;
+		std::function<void()> function;
 		std::shared_ptr<AtomicCounter> counter;
 	};
 
 	struct WaitingTask
 	{
-		WaitingTask() : counter(nullptr), target(0){}
-		WaitingTask(Fiber fiber, std::shared_ptr<AtomicCounter> counter, int target) : fiber(fiber), counter(counter), target(target) {}
+		WaitingTask() : counter(nullptr), target(0), affinity(-1){}
+		WaitingTask(Fiber fiber, std::shared_ptr<AtomicCounter> counter, int target, int affinity) : fiber(fiber), counter(counter), target(target), affinity(affinity) {}
 
 		Fiber fiber;
 		std::shared_ptr<AtomicCounter> counter;
 		int target;
+		int affinity;
 	};
 
 	class Multitasker
@@ -53,22 +54,22 @@ namespace kth
 		std::shared_ptr<AtomicCounter> enqueue(Fn&& f, Args&& ... args);
 
 		template<int N>
-		std::shared_ptr<AtomicCounter> enqueue(std::function<void(void)>(&tasks)[N]);
-		std::shared_ptr<AtomicCounter> enqueue(std::function<void(void)>* tasks, int n);
+		std::shared_ptr<AtomicCounter> enqueue(std::function<void()>(&tasks)[N]);
+		std::shared_ptr<AtomicCounter> enqueue(std::function<void()>* tasks, int n);
 
 		template<class Fn, class... Args>
-		std::function<void(void)> make_task(Fn&& f, Args&& ... args)
+		std::function<void()> make_task(Fn&& f, Args&& ... args)
 		{
 			return std::bind(f, std::forward<Args>(args)...);
 		}
 
-		void wait_for(std::shared_ptr<AtomicCounter>& counter, int value);
+		void wait_for(std::shared_ptr<AtomicCounter>& counter, int value, bool return_on_same_thread = false);
 
 		void stop() { _stop = true; }
-
+		static uint32 get_current_thread_id() { return thread_id; }
 	protected:
 		static thread_local uint32 thread_id;
-		std::mutex _mutex;
+		std::recursive_mutex _mutex;
 		std::vector<Fiber> _fiber_switching_fibers;
 		static thread_local Fiber _fiber_switching_fiber_origin;
 		static thread_local Fiber _fiber_switching_fiber_destination;
@@ -78,12 +79,16 @@ namespace kth
 		static thread_local Fiber _waiting_counter_fiber_destination;
 		static thread_local std::shared_ptr<AtomicCounter> _waiting_counter_fiber_counter;
 		static thread_local int _waiting_counter_fiber_counter_target;
+		static thread_local int _waiting_counter_fiber_affinity;
 
 		moodycamel::BlockingConcurrentQueue<Fiber> _fiber_pool;
 		std::vector<WaitingTask> _waiting_tasks;
 		moodycamel::ConcurrentQueue<Task> _task_queue;
 
 		std::atomic<bool> _stop;
+
+		std::mutex _cv_mutex;
+		std::condition_variable _worker_wake_up;
 
 	};
 
@@ -92,29 +97,33 @@ namespace kth
 	{ 
 		std::shared_ptr<AtomicCounter> counter = std::make_shared<AtomicCounter>(1);
 		_task_queue.enqueue(Task(std::bind(f, std::forward<Args>(args)...), counter));
+		_worker_wake_up.notify_one();
 		return counter;
 	}
 
 	template<int N>
-	std::shared_ptr<AtomicCounter> Multitasker::enqueue(std::function<void(void)> (&tasks)[N])
+	std::shared_ptr<AtomicCounter> Multitasker::enqueue(std::function<void()> (&tasks)[N])
 	{
 		std::shared_ptr<AtomicCounter> counter = std::make_shared<AtomicCounter>(N);
 
 		for (int i = 0; i < N; ++i)
 		{
 			_task_queue.enqueue(Task(tasks[i], counter));
+			_worker_wake_up.notify_one();
 		}
 		return counter;
 	}
 
-	inline std::shared_ptr<AtomicCounter> Multitasker::enqueue(std::function<void(void)>* tasks, int n)
+	inline std::shared_ptr<AtomicCounter> Multitasker::enqueue(std::function<void()>* tasks, int n)
 	{
 		std::shared_ptr<AtomicCounter> counter = std::make_shared<AtomicCounter>(n);
 
 		for (int i = 0; i < n; ++i)
 		{
 			_task_queue.enqueue(Task(tasks[i], counter));
+			_worker_wake_up.notify_one();
 		}
+		
 		return counter;
 	}
 

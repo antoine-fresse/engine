@@ -7,12 +7,17 @@ namespace kth
 	
 	static void fiber_starter(void* args)
 	{
-		(*static_cast<std::function<void(void)>*>(args))();
+		std::function<void()>* pfunc = static_cast<std::function<void()>*>(args);
+		(*pfunc)();
+		delete pfunc;
 	}
-	Fiber create_fiber(std::function<void(void)> func)
+	Fiber create_fiber_impl(std::function<void()> func)
 	{
 		Fiber fiber;
-		fiber.address = CreateFiber(0, (LPFIBER_START_ROUTINE)fiber_starter, &func);
+		// We need a pointer that will live until the fiber is switched to
+		std::function<void()>* pfunc = new std::function<void()>();
+		*pfunc = func;
+		fiber.address = CreateFiber(0, (LPFIBER_START_ROUTINE)fiber_starter, pfunc);
 		return fiber;
 	}
 

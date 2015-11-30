@@ -4,13 +4,14 @@
 namespace kth
 {
 
-	thread_local uint32 Multitasker::thread_id;
-	thread_local Fiber Multitasker::_fiber_switching_fiber_origin;
-	thread_local Fiber Multitasker::_fiber_switching_fiber_destination;
-	thread_local Fiber Multitasker::_waiting_counter_fiber_origin;
-	thread_local Fiber Multitasker::_waiting_counter_fiber_destination;
-	thread_local std::shared_ptr<AtomicCounter> Multitasker::_waiting_counter_fiber_counter;
-	thread_local int Multitasker::_waiting_counter_fiber_counter_target;
+	thread_local uint32 Multitasker::thread_id = -1;
+	thread_local Fiber Multitasker::_fiber_switching_fiber_origin(nullptr);
+	thread_local Fiber Multitasker::_fiber_switching_fiber_destination(nullptr);
+	thread_local Fiber Multitasker::_waiting_counter_fiber_origin(nullptr);
+	thread_local Fiber Multitasker::_waiting_counter_fiber_destination(nullptr);
+	thread_local std::shared_ptr<AtomicCounter> Multitasker::_waiting_counter_fiber_counter(nullptr);
+	thread_local int Multitasker::_waiting_counter_fiber_counter_target(0);
+	thread_local int Multitasker::_waiting_counter_fiber_affinity(0);
 	
 
 	Multitasker::Multitasker(uint32 worker_threads, uint32 fiber_pool_size)
@@ -32,20 +33,22 @@ namespace kth
 
 		for (uint32 i = 1; i < worker_threads; ++i)
 		{
-			std::thread(std::bind(&Multitasker::init_worker, this, i));
+			std::thread(std::bind(&Multitasker::init_worker, this, i)).detach();
 		}
 	}
 
 	void Multitasker::init_worker(uint32 worker_id)
 	{
-		thread_id = worker_id;
-		convert_thread_to_fiber();
+		{
+			thread_id = worker_id;
+			convert_thread_to_fiber();
+			std::this_thread::set_affinity(worker_id);
 
-		std::this_thread::set_affinity(worker_id);
-
-		_fiber_switching_fibers[thread_id] = create_fiber(std::bind(&Multitasker::fiber_switching_fiber_routine, this));
-		_waiting_counter_fibers[thread_id] = create_fiber(std::bind(&Multitasker::waiting_counter_fiber_routine, this));
-
+			std::lock_guard<std::recursive_mutex> lock(_mutex);
+			_fiber_switching_fibers[thread_id] = create_fiber(std::bind(&Multitasker::fiber_switching_fiber_routine, this));
+			_waiting_counter_fibers[thread_id] = create_fiber(std::bind(&Multitasker::waiting_counter_fiber_routine, this));
+		}
+		
 		process_tasks();
 	}
 
@@ -64,8 +67,8 @@ namespace kth
 		{
 			
 			{
-				std::lock_guard<std::mutex> lock(_mutex);
-				_waiting_tasks.emplace_back(_waiting_counter_fiber_origin, _waiting_counter_fiber_counter, _waiting_counter_fiber_counter_target);
+				std::lock_guard<std::recursive_mutex> lock(_mutex);
+				_waiting_tasks.emplace_back(_waiting_counter_fiber_origin, _waiting_counter_fiber_counter, _waiting_counter_fiber_counter_target, _waiting_counter_fiber_affinity);
 			}
 			switch_to_fiber(_waiting_counter_fiber_destination);
 		}
@@ -77,47 +80,59 @@ namespace kth
 		uint32 id = thread_id;
 		while (!_stop.load())
 		{
-			std::unique_lock<std::mutex> lock(_mutex);
-			if(_waiting_tasks.size())
+			bool has_waiting_task = false;
 			{
-				for (auto it = _waiting_tasks.begin(); it != _waiting_tasks.end(); ++it)
+				std::lock_guard<std::recursive_mutex> lock(_mutex);
+				if (_waiting_tasks.size())
 				{
-					if(it->counter->load() == it->target)
+					for (auto it = _waiting_tasks.begin(); it != _waiting_tasks.end(); ++it)
 					{
-						_fiber_switching_fiber_destination = it->fiber;
-						_fiber_switching_fiber_origin = get_current_fiber();
+						if (it->counter->load() == it->target)
+						{
+							if(it->affinity == -1 || it->affinity == id)
+							{
+								_fiber_switching_fiber_destination = it->fiber;
+								_fiber_switching_fiber_origin = get_current_fiber();
 
-						if (it != --_waiting_tasks.end())
-							*it = std::move(_waiting_tasks.back());
-						_waiting_tasks.pop_back();
-
-						lock.release();
-						switch_to_fiber(_fiber_switching_fibers[id]);
-						lock.lock();
-						break;
+								if (it != --_waiting_tasks.end())
+									*it = std::move(_waiting_tasks.back());
+								_waiting_tasks.pop_back();
+								has_waiting_task = true;
+								break;
+							}
+						}
 					}
 				}
 			}
-			lock.release();
-
-			Task task;
-			if(_task_queue.try_dequeue(task))
+			if(has_waiting_task)
 			{
-				task.function();
-				task.counter->fetch_sub(1);
+				switch_to_fiber(_fiber_switching_fibers[id]);
 			}
 			else
 			{
-				std::this_thread::yield();
+				Task task;
+				if (_task_queue.try_dequeue(task))
+				{
+					task.function();
+					task.counter->fetch_sub(1); 
+					// Wake all dormant workers, to check for waiting tasks
+					_worker_wake_up.notify_all();
+				}
+				else
+				{
+					// Nothing to do, sleep a little
+					// TODO(antoine): wait forever until signaled ? Need to check all possibles cases
+					std::unique_lock<std::mutex> lock(_cv_mutex);
+					_worker_wake_up.wait_for(lock, std::chrono::milliseconds(4));
+				}
 			}
-
 			
 		}
 
 
 	}
 
-	void Multitasker::wait_for(std::shared_ptr<AtomicCounter>& counter, int value)
+	void Multitasker::wait_for(std::shared_ptr<AtomicCounter>& counter, int value, bool return_on_same_thread)
 	{
 		if (counter->load() == value) return;
 
@@ -129,7 +144,7 @@ namespace kth
 		_waiting_counter_fiber_origin = get_current_fiber();
 		_waiting_counter_fiber_counter = counter;
 		_waiting_counter_fiber_counter_target = value;
-
+		_waiting_counter_fiber_affinity = return_on_same_thread ? thread_id : -1;
 		switch_to_fiber(_waiting_counter_fibers[id]);
 	}
 }

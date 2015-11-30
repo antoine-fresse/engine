@@ -35,6 +35,7 @@ namespace kth
 			};
 		};
 
+		Entity() : _id(0, 0), _entity_manager(nullptr){}
 		Entity(uint32 id, uint32 version, EntityManager* manager) : _id(id, version), _entity_manager(manager) {}
 
 
@@ -49,6 +50,9 @@ namespace kth
 		template<typename type>
 		void remove_component();
 		void remove_component(const std::string& component_name) const;
+
+		template <typename type>
+		type* get_component() const;
 
 		void destroy() const;
 
@@ -110,7 +114,7 @@ namespace kth
 		std::string get_component_name(uint32 index) const { return _component_name[index]; }
 
 		template <typename type>
-		uint32 index()
+		uint32 index() const
 		{
 			return Component<std::remove_const<type>>::index();
 		}
@@ -272,6 +276,11 @@ namespace kth
 		_entity_manager->remove_component<type>(_id);
 	}
 
+	template <typename type>
+	type* Entity::get_component() const
+	{
+		return _entity_manager->get_component<type>(_id);
+	}
 
 
 	inline void Entity::remove_component(const std::string& component_name) const
