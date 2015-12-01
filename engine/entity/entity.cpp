@@ -54,12 +54,40 @@ namespace kth
 		return true;
 	}
 
+	
+	Entity::Id EntityManager::next_entity(Entity::Id id)
+	{
+		for (uint32 i = id.id + 1; i < _entity_masks.size(); ++i)
+		{
+			if (!(_entity_versions[i] & 0x8000))
+			{
+				return Entity::Id(i, _entity_versions[i]);
+			}
+		}
+		return Entity::Id(-1, -1);
+	}
+
+	Entity::Id EntityManager::next_entity(std::bitset<MAX_COMPONENTS> comp_mask, Entity::Id id)
+	{
+		for (uint32 i = id.id+1; i < _entity_masks.size(); ++i)
+		{
+			if ((_entity_masks[i] & comp_mask) == comp_mask)
+			{
+				return Entity::Id(i, _entity_versions[i]);
+			}
+		}
+
+		return Entity::Id(-1, -1);
+	}
+
 	uint32 EntityManager::allocate_entity(bool force_at_end)
 	{
 		if(!force_at_end && _free_slots.size())
 		{
 			uint32 index = _free_slots.back();
 			_free_slots.pop_back();
+			// Unset last bit to indicate valid entity
+			_entity_versions[index] = _entity_versions[index] & 0x7FFF;
 			return index;
 		}
 

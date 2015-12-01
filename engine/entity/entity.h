@@ -70,43 +70,10 @@ namespace kth
 		EntityManager* _entity_manager;
 	};
 
-	/*template<class Pred>
-	class EntityIterator : std::iterator<std::forward_iterator_tag, Entity>
-	{
-	public:
-		EntityIterator(EntityManager* manager) : _manager(manager){};
-		Entity operator*() const
-		{
-			return Entity(_id.id, _id.version, _manager);
-		}
 
-		Entity operator->()
-		{
-			return operator*();
-		}
+	
 
-		EntityIterator& operator++()
-		{
-			next();
-			return *this;
-		};
-
-		EntityIterator operator++(int)
-		{
-			EntityIterator<Pred> it(*this);
-			next();
-			return it;
-		};
-
-	private:
-		void next()
-		{
-			
-		}
-
-		Entity::Id _id;
-		EntityManager* _manager;
-	};*/
+	
 
 
 	class EntityManager
@@ -118,7 +85,7 @@ namespace kth
 		void register_component(const char* component_name)
 		{
 			_component_name[index<type>()] = component_name;
-			_component_name_lookup[component_name] = Component<type>::index();
+			_component_name_lookup[component_name] = index<type>();
 			_component_pools[index<type>()] = new Pool<type>();
 		}
 
@@ -156,8 +123,10 @@ namespace kth
 			return false;
 		}
 
-		template<typename ... Types>
-		void for_each(typename std::identity<std::function<void(Entity entity, Types*...)>>::type func);
+		void for_each(std::function<void(Entity entity)> func);
+
+		template <typename T, typename ... Types>
+		void for_each(typename std::identity<std::function<void(Entity, T*, Types*...)>>::type func);
 
 		std::bitset<MAX_COMPONENTS> mask(Entity::Id entity) const;
 
@@ -168,7 +137,10 @@ namespace kth
 		{
 			return Component<std::remove_const<type>>::index();
 		}
-	
+
+		Entity::Id next_entity(std::bitset<MAX_COMPONENTS> comp_mask, Entity::Id id);
+		Entity::Id next_entity(Entity::Id id);
+
 	protected:
 		BasePool* _component_pools[MAX_COMPONENTS];
 		std::string _component_name[MAX_COMPONENTS];
@@ -198,6 +170,55 @@ namespace kth
 			return cmask;
 		}
 
+	};
+
+
+	class EntityIterator : public std::iterator<std::forward_iterator_tag, Entity, ptrdiff_t, Entity, Entity>
+	{
+	public:
+		EntityIterator(EntityManager* manager, std::bitset<MAX_COMPONENTS> mask) : _manager(manager), _mask(mask) {};
+		EntityIterator(EntityManager* manager, std::bitset<MAX_COMPONENTS> mask, Entity::Id id) : _id(id), _manager(manager), _mask(mask) {};
+		
+		Entity operator*() const
+		{
+			return Entity(_id.id, _id.version, _manager);
+		}
+
+		Entity operator->() const
+		{
+			return Entity(_id.id, _id.version, _manager);
+		}
+
+		EntityIterator& operator++()
+		{
+			next();
+			return *this;
+		};
+
+		EntityIterator operator++(int)
+		{
+			EntityIterator it(*this);
+			next();
+			return it;
+		};
+
+		bool operator==(const EntityIterator& other) const {
+			return _id.full_id == other._id.full_id && _manager == other._manager && _mask == other._mask;
+		}
+
+		bool operator!=(const EntityIterator& other) const {
+			return _id.full_id != other._id.full_id || _manager != other._manager || _mask != other._mask;
+		}
+
+	private:
+		void next()
+		{
+			_id = _manager->next_entity(_mask, _id);
+		}
+
+		Entity::Id _id;
+		EntityManager* _manager;
+		std::bitset<MAX_COMPONENTS> _mask;
 	};
 
 
@@ -244,7 +265,8 @@ namespace kth
 			}
 		}
 		entity_mask.reset();
-		++_entity_versions[entity.id];
+		// Set last bit to indicate destroyed entity
+		_entity_versions[entity.id] = (_entity_versions[entity.id] + 1) | 0x8000;
 		_free_slots.push_back(entity.id);
 	}
 
@@ -312,18 +334,32 @@ namespace kth
 	}
 
 
-	template <typename ... Types>
-	void EntityManager::for_each(typename std::identity<std::function<void(Entity entity, Types*...)>>::type func)
+	inline void EntityManager::for_each(std::function<void(Entity entity)> func)
 	{
-		auto comp_mask = components_mask<Types...>();
 		for (uint32 i = 0; i < _entity_masks.size(); ++i)
 		{
-			if((_entity_masks[i] & comp_mask) == comp_mask)
+			if(!(_entity_versions[i] & 0x8000))
 			{
 				auto ent = Entity(i, _entity_versions[i], this);
-				func(ent, get_component<Types>(ent.id())...);
+				func(ent);
 			}
-				
+		}
+	}
+
+	template <typename T, typename ... Types>
+	void EntityManager::for_each(typename std::identity<std::function<void(Entity, T*, Types*...)>>::type func)
+	{
+		auto comp_mask = components_mask<T, Types...>();
+
+
+		EntityIterator it(this, comp_mask, {(uint32)-1, 0});
+		++it;
+
+		EntityIterator end(this, comp_mask, { (uint32)-1, (uint32)-1 });
+		for (;it != end; ++it)
+		{
+			auto ent = *it;
+			func(ent, get_component<T>(ent.id()), get_component<Types>(ent.id())...);
 		}
 	}
 

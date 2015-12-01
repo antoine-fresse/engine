@@ -41,7 +41,8 @@ void main_loop()
 			ents[i].add_component<Renderable>((void*)i);
 	}
 
-	
+
+	ents[5000].destroy();
 
 	auto start = std::chrono::high_resolution_clock::now();
 	
@@ -52,8 +53,18 @@ void main_loop()
 		++cnt;
 	});
 	
-	ASSERT(cnt == 5000);
+	ASSERT(cnt == 4999);
+
+	cnt = 0;
+
+	gEM.for_each([&](kth::Entity entity)
+	{
+		++cnt;
+	});
 	
+
+	ASSERT(cnt == 9999);
+
 	auto end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> diff = end - start;
 
@@ -82,7 +93,7 @@ int main(int argc, char* argv[])
 {
 	
 	RegisterComponent(Transform, &gEM);
-	RegisterComponent(Renderable, &gEM);
+	RegisterComponent(Renderable, &gEM); 
 
 	
 	
