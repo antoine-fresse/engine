@@ -65,7 +65,7 @@ namespace kth
 
 		void wait_for(std::shared_ptr<AtomicCounter>& counter, int value, bool return_on_same_thread = false);
 
-		void stop() { _stop = true; }
+		void stop() { _stop = true; _worker_wake_up.notify_all(); }
 		static uint32 get_current_thread_id() { return thread_id; }
 	protected:
 		static thread_local uint32 thread_id;

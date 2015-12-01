@@ -4,7 +4,7 @@
 #include <memory/pool.h>
 #include <bitset>
 #include <map>
-
+#include <functional>
 
 
 #define MAX_COMPONENTS 64
@@ -146,7 +146,20 @@ namespace kth
 		template <typename type>
 		type* get_component(Entity::Id entity) const;
 
-		std::bitset<MAX_COMPONENTS> mask(Entity::Id entity);
+
+		template<typename ... Types>
+		bool has_components(Entity::Id entity) const
+		{
+			auto comp_mask = components_mask<Types>();
+			if ((mask(entity) & comp_mask) == comp_mask)
+				return true;
+			return false;
+		}
+
+		template<typename ... Types>
+		void for_each(typename std::identity<std::function<void(Entity entity, Types*...)>>::type func);
+
+		std::bitset<MAX_COMPONENTS> mask(Entity::Id entity) const;
 
 		std::string get_component_name(uint32 index) const { return _component_name[index]; }
 
@@ -168,6 +181,23 @@ namespace kth
 		std::vector<uint32> _free_slots;
 
 		uint32 allocate_entity(bool force_at_end = false);
+
+		template<typename First>
+		std::bitset<MAX_COMPONENTS> components_mask() const
+		{
+			auto cmask = std::bitset<MAX_COMPONENTS>();
+			cmask[index<First>()] = true;
+			return cmask;
+		}
+
+		template<typename First, typename Second, typename ... Rest>
+		std::bitset<MAX_COMPONENTS> components_mask() const
+		{
+			auto cmask = components_mask<Second, Rest...>();
+			cmask[index<First>()] = true;
+			return cmask;
+		}
+
 	};
 
 
@@ -220,7 +250,7 @@ namespace kth
 
 
 
-	inline std::bitset<MAX_COMPONENTS> EntityManager::mask(Entity::Id entity)
+	inline std::bitset<MAX_COMPONENTS> EntityManager::mask(Entity::Id entity) const
 	{
 		ASSERT(valid(entity));
 		return _entity_masks[entity.id];
@@ -280,6 +310,23 @@ namespace kth
 		Pool<type>* pool = static_cast<Pool<type>*>(_component_pools[component_index]);
 		return pool->get(entity.id);
 	}
+
+
+	template <typename ... Types>
+	void EntityManager::for_each(typename std::identity<std::function<void(Entity entity, Types*...)>>::type func)
+	{
+		auto comp_mask = components_mask<Types...>();
+		for (uint32 i = 0; i < _entity_masks.size(); ++i)
+		{
+			if((_entity_masks[i] & comp_mask) == comp_mask)
+			{
+				auto ent = Entity(i, _entity_versions[i], this);
+				func(ent, get_component<Types>(ent.id())...);
+			}
+				
+		}
+	}
+
 
 	/*
 	*	Entity
