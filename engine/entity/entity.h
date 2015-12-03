@@ -81,14 +81,6 @@ namespace kth
 	public:
 		EntityManager() : _free_index(0){}
 
-		template<typename type>
-		void register_component(const char* component_name)
-		{
-			_component_name[index<type>()] = component_name;
-			_component_name_lookup[component_name] = index<type>();
-			_component_pools[index<type>()] = new Pool<type>();
-		}
-
 		Entity create_empty_entity();
 
 		bool valid(Entity::Id entity) const
@@ -100,15 +92,12 @@ namespace kth
 	
 		template <typename type, class ... Types>
 		type* add_component(Entity::Id entity, Types&& ... args);
-		void* add_component(Entity::Id entity, const std::string& component_name);
 
 		template <typename type>
 		void  remove_component(Entity::Id entity);
-		void  remove_component(Entity::Id entity, const std::string& component_name);
 
 		template <typename type>
 		bool has_component(Entity::Id entity) const;
-		bool has_component(Entity::Id entity, const std::string& component_name) const;
 
 		template <typename type>
 		type* get_component(Entity::Id entity) const;
@@ -130,7 +119,6 @@ namespace kth
 
 		std::bitset<MAX_COMPONENTS> mask(Entity::Id entity) const;
 
-		std::string get_component_name(uint32 index) const { return _component_name[index]; }
 
 		template <typename type>
 		uint32 index() const
@@ -140,19 +128,6 @@ namespace kth
 
 		Entity::Id next_entity(std::bitset<MAX_COMPONENTS> comp_mask, Entity::Id id);
 		Entity::Id next_entity(Entity::Id id);
-
-	protected:
-		BasePool* _component_pools[MAX_COMPONENTS];
-		std::string _component_name[MAX_COMPONENTS];
-		std::map<std::string, uint32> _component_name_lookup;
-
-		std::vector<std::bitset<MAX_COMPONENTS>> _entity_masks;
-		std::vector<uint32> _entity_versions;
-
-		uint32 _free_index;
-		std::vector<uint32> _free_slots;
-
-		uint32 allocate_entity(bool force_at_end = false);
 
 		template<typename First>
 		std::bitset<MAX_COMPONENTS> components_mask() const
@@ -169,6 +144,17 @@ namespace kth
 			cmask[index<First>()] = true;
 			return cmask;
 		}
+
+	protected:
+		BasePool* _component_pools[MAX_COMPONENTS];
+		
+		std::vector<std::bitset<MAX_COMPONENTS>> _entity_masks;
+		std::vector<uint32> _entity_versions;
+
+		uint32 _free_index;
+		std::vector<uint32> _free_slots;
+
+		uint32 allocate_entity(bool force_at_end = false);
 
 	};
 
@@ -285,9 +271,12 @@ namespace kth
 		ASSERT(valid(entity));
 		auto& entity_mask = _entity_masks[entity.id];
 		int component_index = index<type>();
+		Pool<type>* pool = static_cast<Pool<type>*>(_component_pools[component_index]);
+		if (!pool) _component_pools[component_index] = pool = new Pool<type>();
+
 		if (entity_mask[component_index]) return static_cast<Pool<type>*>(_component_pools[component_index])->get(entity.id);
 	
-		Pool<type>* pool = static_cast<Pool<type>*>(_component_pools[component_index]);
+		pool = static_cast<Pool<type>*>(_component_pools[component_index]);
 		pool->reserve(entity.id);
 		type* component = pool->get(entity.id);
 	
@@ -380,16 +369,6 @@ namespace kth
 		return _entity_manager->add_component<type>(_id, std::forward<ArgsTypes>(args) ...);
 	}
 
-	inline bool Entity::has_component(const std::string& component_name) const
-	{
-		return _entity_manager->has_component(_id, component_name);
-	}
-
-	inline void* Entity::add_component(const std::string& componenent_name) const
-	{
-		return _entity_manager->add_component(_id, componenent_name);
-	}
-
 	template<typename type>
 	inline void Entity::remove_component()
 	{
@@ -400,12 +379,6 @@ namespace kth
 	type* Entity::get_component() const
 	{
 		return _entity_manager->get_component<type>(_id);
-	}
-
-
-	inline void Entity::remove_component(const std::string& component_name) const
-	{
-		_entity_manager->remove_component(_id, component_name);
 	}
 
 	inline void Entity::destroy() const

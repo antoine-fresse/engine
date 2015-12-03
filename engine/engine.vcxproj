@@ -142,6 +142,7 @@
     <ClInclude Include="concurrentqueue\concurrentqueue.h" />
     <ClInclude Include="entity\entity.h" />
     <ClInclude Include="entity\serializer.h" />
+    <ClInclude Include="entity\system.h" />
     <ClInclude Include="memory\pool.h" />
     <ClInclude Include="thread\fiber.h" />
     <ClInclude Include="thread\multitasker.h" />

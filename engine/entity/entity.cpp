@@ -11,49 +11,6 @@ namespace kth
 		return Entity(entity, _entity_versions[entity], this);
 	}
 
-	void* EntityManager::add_component(Entity::Id entity, const std::string& component_name)
-	{
-		ASSERT(valid(entity));
-		auto& entity_mask = _entity_masks[entity.id];
-		auto itfind = _component_name_lookup.find(component_name);
-		if (itfind == _component_name_lookup.end()) return nullptr;
-		int component_index = itfind->second;
-
-		if (entity_mask[component_index]) return _component_pools[component_index]->get_element(entity.id);
-
-		BasePool* pool = _component_pools[component_index];
-		pool->reserve(entity.id);
-		void* component = pool->get_element(entity.id);
-
-		pool->default_constuct(entity.id);
-		entity_mask.set(component_index, true);
-		return component;
-	}
-
-	void EntityManager::remove_component(Entity::Id entity, const std::string& component_name)
-	{
-		ASSERT(valid(entity));
-		auto& entity_mask = _entity_masks[entity.id];
-		auto itfind = _component_name_lookup.find(component_name);
-		if (itfind == _component_name_lookup.end()) return;
-		int component_index = itfind->second;
-		if (!entity_mask[component_index]) return;
-
-		BasePool* pool = _component_pools[component_index];
-		pool->destroy(entity.id);
-
-		entity_mask.set(component_index, false);
-	}
-
-	bool EntityManager::has_component(Entity::Id entity, const std::string& component_name) const
-	{
-		ASSERT(valid(entity));
-		auto& entity_mask = _entity_masks[entity.id];
-		auto itfind = _component_name_lookup.find(component_name);
-		if (itfind == _component_name_lookup.end()) return false;
-		return true;
-	}
-
 	
 	Entity::Id EntityManager::next_entity(Entity::Id id)
 	{

@@ -59,5 +59,8 @@
     <ClInclude Include="thread\thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="entity\system.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
