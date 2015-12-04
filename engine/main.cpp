@@ -1,11 +1,12 @@
 #include <SFML/Graphics.hpp>
-#include <SFML/OpenGL.hpp>
-
 #include <entity/entity.h>
 #include <entity/serializer.h>
 #include <thread/multitasker.h>
 
-#include "entity/system.h"
+#include <entity/system.h>
+
+#include <imgui_impl.h>
+#include <opengl_includes.h>
 
 
 struct Transform
@@ -83,7 +84,12 @@ kth::EntityManager gEM;
 
 void main_loop()
 {
+	glewInit();
 	auto window = std::make_shared<sf::RenderWindow>(sf::VideoMode(200, 200), "SFML works!");
+
+	
+
+	ImGui_Impl_Init(window.get());
 
 	auto gDebug_texture = std::make_shared<sf::Texture>();
 	gDebug_texture->loadFromFile("debug_texture.png");
@@ -117,16 +123,31 @@ void main_loop()
 		{
 			if (event.type == sf::Event::Closed)
 				window->close();
+
+			if(event.type == sf::Event::MouseButtonPressed)
+			{
+				
+			}
 		}
+
+		ImGui_Impl_NewFrame(window.get(), dt);
 
 		window->clear();
 		
-		window->draw(shape);
-		renderer.update(dt);
+		//window->draw(shape);
+		//renderer.update(dt);
 
+
+		ImGui::Begin("Test");
+		{
+			ImGui::Text("Hello world !");
+		}
+		ImGui::End();
+		
+		ImGui::Render();
 		window->display();
 	}
-
+	ImGui_Impl_Shutdown();
 	gTasker.stop();
 }
 
