@@ -1,7 +1,6 @@
 #include <imgui_impl.h>
 #include <opengl_includes.h>
 #include <SFML/Graphics.hpp>
-#include <chrono>
 
 // ImGui GLFW binding with OpenGL3 + shaders
 // You can copy and use unmodified imgui_impl_* files in your project. See main.cpp for an example of using this.
@@ -116,6 +115,7 @@ void ImGui_Impl_RenderDrawLists(ImDrawData* draw_data)
 	if (last_enable_depth_test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
 	if (last_enable_scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
 	glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]);
+	
 	g_Window->popGLStates();
 }
 

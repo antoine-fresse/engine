@@ -1,5 +1,4 @@
 #pragma once
-
-#define GLEW_STATIC
 #include <GL/glew.h>
-#include <SFML/OpenGL.hpp>
+#include <GL/wglew.h>
+//#include <SFML/OpenGL.hpp>

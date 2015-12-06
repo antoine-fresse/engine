@@ -82,14 +82,31 @@ void SpriteRenderer::update(std::chrono::duration<double> dt)
 kth::Multitasker gTasker(4, 25);
 kth::EntityManager gEM;
 
+int super_func(int val)
+{
+	return val * 10;
+}
+
+template<typename ReturnType, typename ... ArgsTypes>
+ReturnType call_func(void* f, ArgsTypes&& ... args)
+{
+	std::function<ReturnType(ArgsTypes...)> wrap((ReturnType(*)(ArgsTypes...))f);
+	return wrap(std::forward<ArgsTypes>(args)...);
+}
+
 void main_loop()
 {
-	glewInit();
+	
 	auto window = std::make_shared<sf::RenderWindow>(sf::VideoMode(200, 200), "SFML works!");
 
-	
+	std::map<std::string, void*> funcs;
+	funcs["test"] = &super_func;
 
-	ImGui_Impl_Init(window.get());
+
+	std::cout << "return " << call_func<int>(funcs["test"], 5) << std::endl;
+
+	
+	//ImGui_Impl_Init(window.get());
 
 	auto gDebug_texture = std::make_shared<sf::Texture>();
 	gDebug_texture->loadFromFile("debug_texture.png");
@@ -130,29 +147,32 @@ void main_loop()
 			}
 		}
 
-		ImGui_Impl_NewFrame(window.get(), dt);
+		//ImGui_Impl_NewFrame(window.get(), dt);
 
 		window->clear();
 		
-		//window->draw(shape);
-		//renderer.update(dt);
+		window->draw(shape);
+		renderer.update(dt);
 
 
-		ImGui::Begin("Test");
+		/*ImGui::Begin("Test");
 		{
 			ImGui::Text("Hello world !");
 		}
-		ImGui::End();
+		ImGui::End();*/
 		
-		ImGui::Render();
+		//ImGui::Render();
 		window->display();
 	}
-	ImGui_Impl_Shutdown();
+	//ImGui_Impl_Shutdown();
 	gTasker.stop();
 }
 
 int main(int argc, char* argv[])
 {
+	/*glewExperimental = GL_TRUE;
+	glewInit();*/
+
 	//kth::Multitasker tasker(1, 25);
 	gTasker.enqueue(main_loop);
 	gTasker.process_tasks();
