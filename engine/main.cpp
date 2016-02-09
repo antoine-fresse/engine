@@ -1,28 +1,32 @@
-#include <SFML/Graphics.hpp>
+#include <precompiled_header.h>
+
 #include <entity/entity.h>
 #include <entity/serializer.h>
 #include <thread/multitasker.h>
-
 #include <entity/system.h>
 
 #include <imgui_impl.h>
-#include <opengl_includes.h>
+
+static void error_callback(int error, const char* description)
+{
+	fprintf(stderr, "Error %d: %s\n", error, description);
+}
 
 
 struct Transform
 {
 	Transform() : position(0.0f,0.0f) {}
 	Transform(float x, float y) : position(x,y) {}
-	sf::Vector2f position;
+	glm::vec2 position;
 };
 
-struct Sprite2D
+/*struct Sprite2D
 {
 	Sprite2D() : texture(nullptr), texture_coordinates{{0.0f,0.0f},{ 32.0f,0.0f },{ 0.0f,32.0f },{ 32.0f,32.0f }}, size(0.0f, 0.0f), zOrder(0) {}
 
-	std::shared_ptr<sf::Texture> texture;
-	sf::Vector2f texture_coordinates[4];
-	sf::Vector2f size;
+	shared_ptr<sf::Texture> texture;
+	glm::vec2 texture_coordinates[4];
+	glm::vec2 size;
 	int zOrder;
 	
 };
@@ -30,18 +34,18 @@ struct Sprite2D
 class SpriteRenderer : public kth::System<Transform, Sprite2D>
 {
 public:
-	SpriteRenderer(kth::EntityManager& manager, std::shared_ptr<sf::RenderTarget> target) : System<Transform, Sprite2D>(manager) , _render_target(target) {}
+	SpriteRenderer(kth::EntityManager& manager, shared_ptr<sf::RenderTarget> target) : System<Transform, Sprite2D>(manager) , _render_target(target) {}
 	~SpriteRenderer() override {};
-	void update(std::chrono::duration<double> dt) override;
+	void update(chrono::duration<double> dt) override;
 private:
 
-	std::vector<std::pair<Transform*,Sprite2D*>> _draw_list;
-	std::shared_ptr<sf::RenderTarget> _render_target;
+	vector<pair<Transform*,Sprite2D*>> _draw_list;
+	shared_ptr<sf::RenderTarget> _render_target;
 
 	
 };
 
-void SpriteRenderer::update(std::chrono::duration<double> dt)
+void SpriteRenderer::update(chrono::duration<double> dt)
 {
 	if (!_render_target) return;
 
@@ -51,7 +55,7 @@ void SpriteRenderer::update(std::chrono::duration<double> dt)
 	});
 	
 	// Sort by zOrder then by texture (then by pointer address to avoid flickering)
-	std::sort(_draw_list.begin(), _draw_list.end(), [](const std::pair<Transform*, Sprite2D*>& a, const std::pair<Transform*, Sprite2D*>& b)
+	sort(_draw_list.begin(), _draw_list.end(), [](const pair<Transform*, Sprite2D*>& a, const pair<Transform*, Sprite2D*>& b)
 	{
 		if (a.second->zOrder == b.second->zOrder)
 		{
@@ -66,8 +70,8 @@ void SpriteRenderer::update(std::chrono::duration<double> dt)
 	for(auto&& sprite : _draw_list)
 	{
 		quad[0].position = sprite.first->position;
-		quad[1].position = sprite.first->position + sf::Vector2f(sprite.second->size.x,0.0f);
-		quad[2].position = sprite.first->position + sf::Vector2f(0.0f, sprite.second->size.y);
+		quad[1].position = sprite.first->position + glm::vec2(sprite.second->size.x,0.0f);
+		quad[2].position = sprite.first->position + glm::vec2(0.0f, sprite.second->size.y);
 		quad[3].position = sprite.first->position + sprite.second->size;
 		
 
@@ -77,7 +81,7 @@ void SpriteRenderer::update(std::chrono::duration<double> dt)
 		_render_target->draw(quad, sprite.second->texture.get());
 	}
 
-}
+}*/
 
 kth::Multitasker gTasker(4, 25);
 kth::EntityManager gEM;
@@ -94,25 +98,31 @@ ReturnType call_func(void* f, ArgsTypes&& ... args)
 	return wrap(std::forward<ArgsTypes>(args)...);
 }
 
+using GenericEventCallback = std::function<int(void*)>;
+
 void main_loop()
 {
+	using namespace std;
+	glfwSetErrorCallback(error_callback);
+	if (!glfwInit())
+		return;
 	
-	auto window = std::make_shared<sf::RenderWindow>(sf::VideoMode(200, 200), "SFML works!");
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	std::map<std::string, void*> funcs;
-	funcs["test"] = &super_func;
+	GLFWwindow* window = glfwCreateWindow(1280, 720, "ImGui OpenGL3 example", NULL, NULL);
+	glfwMakeContextCurrent(window);
+	gl3wInit();
 
-
-	std::cout << "return " << call_func<int>(funcs["test"], 5) << std::endl;
-
+	// Setup ImGui binding
+	ImGui_ImplGlfwGL3_Init(window, true);
 	
-	//ImGui_Impl_Init(window.get());
-
-	auto gDebug_texture = std::make_shared<sf::Texture>();
-	gDebug_texture->loadFromFile("debug_texture.png");
-
-	sf::CircleShape shape(100.f);
-	shape.setFillColor(sf::Color::Green);
+	map<string, GenericEventCallback> funcs;
+	funcs["test"] = [](void * param) { return super_func((int)param); };
+	
+	cout << "Return :" << funcs["test"]((void*)5) << endl;
+	
 	
 	const int N = 10;
 	kth::Entity ents[N];
@@ -120,69 +130,42 @@ void main_loop()
 	{
 		ents[i] = gEM.create_empty_entity();
 		ents[i].add_component<Transform>(20 + i*10.0f, 20 + i*10.0f);
-		auto sprite = ents[i].add_component<Sprite2D>();
-		sprite->size = { 32,32 };
-		sprite->texture = gDebug_texture;
-		sprite->zOrder = i % 3;
 	}
-
-
-	
-	SpriteRenderer renderer(gEM, window);
-	auto lt = std::chrono::high_resolution_clock::now();
-	while (window->isOpen())
+	auto lt = chrono::high_resolution_clock::now();
+	while (!glfwWindowShouldClose(window))
 	{
-		auto t = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> dt = t - lt;
+		auto t = chrono::high_resolution_clock::now();
+		chrono::duration<double> dt = t - lt;
 		lt = t;
-		sf::Event event;
-		while (window->pollEvent(event))
-		{
-			if (event.type == sf::Event::Closed)
-				window->close();
-
-			if(event.type == sf::Event::MouseButtonPressed)
-			{
-				
-			}
-		}
-
-		//ImGui_Impl_NewFrame(window.get(), dt);
-
-		window->clear();
+		glfwPollEvents();
+		ImGui_ImplGlfwGL3_NewFrame();
 		
-		window->draw(shape);
-		renderer.update(dt);
+
+		ImGui::Begin("Test");
+
+		ImGui::Value("dt", (float)(1.0/dt.count()));
+
+		ImGui::End();
 
 
-		/*ImGui::Begin("Test");
-		{
-			ImGui::Text("Hello world !");
-		}
-		ImGui::End();*/
-		
-		//ImGui::Render();
-		window->display();
+		int display_w, display_h;
+		glfwGetFramebufferSize(window, &display_w, &display_h);
+		glViewport(0, 0, display_w, display_h);
+		glClearColor(1.0, 0.0, 1.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT);
+		ImGui::Render();
+		glfwSwapBuffers(window);
 	}
-	//ImGui_Impl_Shutdown();
+	ImGui_ImplGlfwGL3_Shutdown();
+	glfwTerminate();
+
 	gTasker.stop();
 }
 
 int main(int argc, char* argv[])
 {
-	/*glewExperimental = GL_TRUE;
-	glewInit();*/
-
-	//kth::Multitasker tasker(1, 25);
 	gTasker.enqueue(main_loop);
-	gTasker.process_tasks();
-
-	/*std::ofstream file("blueprint.json");
-	cereal::JSONOutputArchive ar(file);
-	ar(e);
-
-	file.close();*/
-
-	
+	// Process tasks on the "main" thread
+	gTasker.process_tasks(); 
 	return 0;
 }

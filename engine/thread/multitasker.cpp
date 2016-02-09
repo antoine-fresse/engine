@@ -1,3 +1,4 @@
+#include <precompiled_header.h>
 #include <thread/multitasker.h>
 #include <thread/thread.h>
 

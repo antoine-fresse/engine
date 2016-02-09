@@ -1,3 +1,5 @@
+#include <precompiled_header.h>
+
 #include "fiber.h"
 #include "windows.h"
 

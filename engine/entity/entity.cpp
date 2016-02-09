@@ -1,3 +1,4 @@
+#include <precompiled_header.h>
 #include <entity/entity.h>
 
 namespace kth

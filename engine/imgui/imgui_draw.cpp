@@ -1,3 +1,4 @@
+#include <precompiled_header.h>
 // ImGui library v1.47 WIP
 // Drawing and font code
 
