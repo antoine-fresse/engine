@@ -151,6 +151,7 @@ void ImGui_ImplGlfwGL3_CharCallback(GLFWwindow*, unsigned int c)
 		io.AddInputCharacter((unsigned short)c);
 }
 
+
 bool ImGui_ImplGlfwGL3_CreateFontsTexture()
 {
 	// Build texture atlas
@@ -176,6 +177,7 @@ bool ImGui_ImplGlfwGL3_CreateFontsTexture()
 
 	return true;
 }
+
 
 bool ImGui_ImplGlfwGL3_CreateDeviceObjects()
 {
@@ -254,6 +256,7 @@ bool ImGui_ImplGlfwGL3_CreateDeviceObjects()
 	return true;
 }
 
+
 void    ImGui_ImplGlfwGL3_InvalidateDeviceObjects()
 {
 	if (g_VaoHandle) glDeleteVertexArrays(1, &g_VaoHandle);
@@ -279,6 +282,7 @@ void    ImGui_ImplGlfwGL3_InvalidateDeviceObjects()
 		g_FontTexture = 0;
 	}
 }
+
 
 bool    ImGui_ImplGlfwGL3_Init(GLFWwindow* window, bool install_callbacks)
 {
@@ -323,16 +327,18 @@ bool    ImGui_ImplGlfwGL3_Init(GLFWwindow* window, bool install_callbacks)
 	return true;
 }
 
+
 void ImGui_ImplGlfwGL3_Shutdown()
 {
 	ImGui_ImplGlfwGL3_InvalidateDeviceObjects();
 	ImGui::Shutdown();
 }
 
+// Call only on the main thread
 void ImGui_ImplGlfwGL3_NewFrame()
 {
-	if (!g_FontTexture)
-		ImGui_ImplGlfwGL3_CreateDeviceObjects();
+	/*if (!g_FontTexture)
+		ImGui_ImplGlfwGL3_CreateDeviceObjects();*/
 
 	ImGuiIO& io = ImGui::GetIO();
 

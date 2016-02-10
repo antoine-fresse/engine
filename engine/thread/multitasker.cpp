@@ -133,7 +133,7 @@ namespace kth
 
 	}
 
-	void Multitasker::wait_for(std::shared_ptr<AtomicCounter>& counter, int value, bool return_on_same_thread)
+	void Multitasker::wait_for(std::shared_ptr<AtomicCounter> counter, int value, bool return_on_same_thread)
 	{
 		if (counter->load() == value) return;
 

@@ -6,13 +6,17 @@
 #include <imgui/imgui.h>
 
 struct GLFWwindow;
-
+// Needs active GL context
 IMGUI_API bool        ImGui_ImplGlfwGL3_Init(GLFWwindow* window, bool install_callbacks);
+// Needs active GL context
 IMGUI_API void        ImGui_ImplGlfwGL3_Shutdown();
+// Call only from the main thread
 IMGUI_API void        ImGui_ImplGlfwGL3_NewFrame();
 
 // Use if you want to reset your rendering device without losing ImGui state.
+// Needs active GL context
 IMGUI_API void        ImGui_ImplGlfwGL3_InvalidateDeviceObjects();
+// Needs active GL context
 IMGUI_API bool        ImGui_ImplGlfwGL3_CreateDeviceObjects();
 
 // GLFW callbacks (installed by default if you enable 'install_callbacks' during initialization)

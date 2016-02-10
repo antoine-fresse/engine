@@ -100,13 +100,29 @@ ReturnType call_func(void* f, ArgsTypes&& ... args)
 
 using GenericEventCallback = std::function<int(void*)>;
 
-void main_loop()
+
+void game_render_and_swap(GLFWwindow* window)
 {
-	using namespace std;
+	glfwMakeContextCurrent(window);
+
+	int display_w, display_h;
+	glfwGetFramebufferSize(window, &display_w, &display_h);
+
+	glViewport(0, 0, display_w, display_h);
+	glClearColor(1.0, 0.0, 1.0, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	ImGui::Render();
+	glfwSwapBuffers(window);
+	
+	glfwMakeContextCurrent(nullptr);
+}
+GLFWwindow* init_gl_context()
+{
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
-		return;
-	
+		return nullptr;
+
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -117,7 +133,16 @@ void main_loop()
 
 	// Setup ImGui binding
 	ImGui_ImplGlfwGL3_Init(window, true);
+	ImGui_ImplGlfwGL3_CreateDeviceObjects();
+
+	glfwMakeContextCurrent(nullptr);
+	return window;
+}
+void main_loop(GLFWwindow* window)
+{
+	using namespace std;
 	
+
 	map<string, GenericEventCallback> funcs;
 	funcs["test"] = [](void * param) { return super_func((int)param); };
 	
@@ -132,6 +157,7 @@ void main_loop()
 		ents[i].add_component<Transform>(20 + i*10.0f, 20 + i*10.0f);
 	}
 	auto lt = chrono::high_resolution_clock::now();
+
 	while (!glfwWindowShouldClose(window))
 	{
 		auto t = chrono::high_resolution_clock::now();
@@ -139,23 +165,19 @@ void main_loop()
 		lt = t;
 		glfwPollEvents();
 		ImGui_ImplGlfwGL3_NewFrame();
-		
+		cout << this_thread::get_id() << endl;
 
-		ImGui::Begin("Test");
-
+		ImGui::Begin("Debug");
 		ImGui::Value("dt", (float)(1.0/dt.count()));
-
+		ImGui::Text("Mouse position : %f, %f", ImGui::GetMousePos().x, ImGui::GetMousePos().y);
 		ImGui::End();
 
-
-		int display_w, display_h;
-		glfwGetFramebufferSize(window, &display_w, &display_h);
-		glViewport(0, 0, display_w, display_h);
-		glClearColor(1.0, 0.0, 1.0, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT);
-		ImGui::Render();
-		glfwSwapBuffers(window);
+		
+		// Rendering 
+		gTasker.wait_for(gTasker.enqueue(game_render_and_swap, window), 0, true);
 	}
+
+	glfwMakeContextCurrent(window);
 	ImGui_ImplGlfwGL3_Shutdown();
 	glfwTerminate();
 
@@ -164,8 +186,12 @@ void main_loop()
 
 int main(int argc, char* argv[])
 {
-	gTasker.enqueue(main_loop);
-	// Process tasks on the "main" thread
-	gTasker.process_tasks(); 
+	using namespace std;
+	cout << this_thread::get_id() << endl;
+	auto window = init_gl_context();
+	if (window)
+	{
+		main_loop(window);
+	}
 	return 0;
 }
