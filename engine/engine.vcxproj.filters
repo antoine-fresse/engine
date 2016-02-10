@@ -42,9 +42,6 @@
     <ClCompile Include="imgui\imgui_draw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libs\gl3w\src\gl3w.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="precompiled_header.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
