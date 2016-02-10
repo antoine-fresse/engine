@@ -36,3 +36,4 @@ Release/
 *.opendb
 engine.VC.db
 *.ipch
+engine.sln.ecd
