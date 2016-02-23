@@ -7,6 +7,10 @@
 
 #include <imgui_impl.h>
 
+#include <assimp/Importer.hpp>
+
+using namespace std;
+
 static void error_callback(int error, const char* description)
 {
 	fprintf(stderr, "Error %d: %s\n", error, description);
@@ -20,85 +24,10 @@ struct Transform
 	glm::vec2 position;
 };
 
-/*struct Sprite2D
-{
-	Sprite2D() : texture(nullptr), texture_coordinates{{0.0f,0.0f},{ 32.0f,0.0f },{ 0.0f,32.0f },{ 32.0f,32.0f }}, size(0.0f, 0.0f), zOrder(0) {}
-
-	shared_ptr<sf::Texture> texture;
-	glm::vec2 texture_coordinates[4];
-	glm::vec2 size;
-	int zOrder;
-	
-};
-
-class SpriteRenderer : public kth::System<Transform, Sprite2D>
-{
-public:
-	SpriteRenderer(kth::EntityManager& manager, shared_ptr<sf::RenderTarget> target) : System<Transform, Sprite2D>(manager) , _render_target(target) {}
-	~SpriteRenderer() override {};
-	void update(chrono::duration<double> dt) override;
-private:
-
-	vector<pair<Transform*,Sprite2D*>> _draw_list;
-	shared_ptr<sf::RenderTarget> _render_target;
-
-	
-};
-
-void SpriteRenderer::update(chrono::duration<double> dt)
-{
-	if (!_render_target) return;
-
-	_manager.for_each<Transform, Sprite2D>([&](kth::Entity entity, Transform* transform, Sprite2D* sprite)
-	{
-		_draw_list.push_back({ transform, sprite });
-	});
-	
-	// Sort by zOrder then by texture (then by pointer address to avoid flickering)
-	sort(_draw_list.begin(), _draw_list.end(), [](const pair<Transform*, Sprite2D*>& a, const pair<Transform*, Sprite2D*>& b)
-	{
-		if (a.second->zOrder == b.second->zOrder)
-		{
-			if (a.second->texture == b.second->texture) return a < b;
-			return a.second->texture < b.second->texture;
-		}	
-		return a.second->zOrder < b.second->zOrder;
-	});
-
-	sf::VertexArray quad(sf::TrianglesStrip, 4);
-	
-	for(auto&& sprite : _draw_list)
-	{
-		quad[0].position = sprite.first->position;
-		quad[1].position = sprite.first->position + glm::vec2(sprite.second->size.x,0.0f);
-		quad[2].position = sprite.first->position + glm::vec2(0.0f, sprite.second->size.y);
-		quad[3].position = sprite.first->position + sprite.second->size;
-		
-
-		for (int i = 0; i < 4; ++i)
-			quad[i].texCoords = sprite.second->texture_coordinates[i];
-
-		_render_target->draw(quad, sprite.second->texture.get());
-	}
-
-}*/
 
 kth::Multitasker gTasker(4, 25);
 kth::EntityManager gEM;
 
-int super_func(int val)
-{
-	return val * 10;
-}
-
-template<typename ReturnType, typename ... ArgsTypes>
-ReturnType call_func(void* f, ArgsTypes&& ... args)
-{
-	std::function<ReturnType(ArgsTypes...)> wrap((ReturnType(*)(ArgsTypes...))f);
-	return wrap(std::forward<ArgsTypes>(args)...);
-}
-
-using GenericEventCallback = std::function<int(void*)>;
 
 
 void game_render_and_swap(GLFWwindow* window)
@@ -138,20 +67,14 @@ GLFWwindow* init_gl_context()
 	glfwMakeContextCurrent(nullptr);
 	return window;
 }
+
 void main_loop(GLFWwindow* window)
 {
 	using namespace std;
 	
-
-	map<string, GenericEventCallback> funcs;
-	funcs["test"] = [](void * param) { return super_func((int)param); };
-	
-	cout << "Return :" << funcs["test"]((void*)5) << endl;
-	
-	
-	const int N = 10;
+	const int32 N = 10;
 	kth::Entity ents[N];
-	for (int i = 0; i < N; ++i)
+	for (uint32 i = 0; i < N; ++i)
 	{
 		ents[i] = gEM.create_empty_entity();
 		ents[i].add_component<Transform>(20 + i*10.0f, 20 + i*10.0f);
@@ -161,7 +84,7 @@ void main_loop(GLFWwindow* window)
 	while (!glfwWindowShouldClose(window))
 	{
 		auto t = chrono::high_resolution_clock::now();
-		chrono::duration<double> dt = t - lt;
+		chrono::duration<float64> dt = t - lt;
 		lt = t;
 		glfwPollEvents();
 		ImGui_ImplGlfwGL3_NewFrame();
@@ -183,15 +106,53 @@ void main_loop(GLFWwindow* window)
 
 	gTasker.stop();
 }
+class A
+{
+public:
+	virtual ~A() = default;
+	virtual void draw() { printf("A !\n"); }
+};
+
+class B : public A
+{
+public:
+	virtual ~B() = default;
+	virtual void draw() override { printf("B !\n"); }
+};
+
+
+
 
 int main(int argc, char* argv[])
 {
 	using namespace std;
-	cout << this_thread::get_id() << endl;
+	unique_ptr<lua_State, void(*)(lua_State*)> lua(luaL_newstate(), lua_close);
+	auto L = lua.get();
+
+	luaL_openlibs(L);
+	auto n = luabridge::getGlobalNamespace(L)
+	
+	.beginClass<A>("A")
+		.addFunction("draw", &A::draw)
+	.endClass()
+	.deriveClass<B, A>("B")
+	.endClass();
+
+	B b;
+	A& a = b;
+
+	luabridge::push<A&>(L, a);
+	lua_setglobal(L, "a");
+	
+	luaL_dostring(L, "a:draw()");
+
+	/*cout << this_thread::get_id() << endl;
 	auto window = init_gl_context();
 	if (window)
 	{
 		main_loop(window);
-	}
+	}*/
+
 	return 0;
 }
+
